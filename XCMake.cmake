@@ -1,4 +1,4 @@
-# Print the content of a variable with title and prefix
+﻿# Print the content of a variable with title and prefix
 function(Xi_printList)
 	cmake_parse_arguments("ARG" "" "TITLE;PREFIX" "LIST" ${ARGN})
 	if(NOT ${ARG_TITLE} STREQUAL "")
@@ -18,6 +18,7 @@ function(Xi_addAllSubDirGlob path)
 			list(APPEND dirs ${item})
 		endif()
 	endforeach()
+	message(STATUS "")
 	Xi_printList(TITLE "directories:" PREFIX "- " LIST ${dirs})
 	foreach(dir ${dirs})
 		add_subdirectory(${dir})
@@ -54,15 +55,22 @@ function(Xi_groupAllSrcs)
 endfunction()
 
 # Get the name of the target from its path and folder name
-function(Xi_getTargetName rst targetPath)
-	file(RELATIVE_PATH targetRelPath "${PROJECT_SOURCE_DIR}/src" "${targetPath}")
+function(Xi_getTargetNameGlob rst targetPath)
+	file(RELATIVE_PATH targetRelPath "${PROJECT_SOURCE_DIR}/src" ${targetPath})
+	string(REPLACE "/" "_" targetName "${PROJECT_NAME}/${targetRelPath}")
+	set(${rst} ${targetName} PARENT_SCOPE) 
+endfunction()
+
+# A relative path version
+function(Xi_getTargetNameRel rst targetPath)
+	file(RELATIVE_PATH targetRelPath "${PROJECT_SOURCE_DIR}/src" "${PROJECT_SOURCE_DIR}/src/${targetPath}")
 	string(REPLACE "/" "_" targetName "${PROJECT_NAME}/${targetRelPath}")
 	set(${rst} ${targetName} PARENT_SCOPE) 
 endfunction()
 
 # A specific version, call in current target folder
 function(Xi_getCurTargetName rst)
-	Xi_getTargetName(targetName ${CMAKE_CURRENT_SOURCE_DIR})
+	Xi_getTargetNameGlob(targetName ${CMAKE_CURRENT_SOURCE_DIR})
 	set(${rst} ${targetName} PARENT_SCOPE) 
 endfunction()
 
@@ -123,6 +131,7 @@ function(Xi_addTargetRaw)
 	set_target_properties(${targetName} PROPERTIES FOLDER ${folderPath})
 	
 	target_link_libraries(${targetName} PUBLIC ${ARG_LIBS})
+	target_include_directories(${targetName} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 	install(TARGETS ${targetName}
 		RUNTIME DESTINATION "bin"
@@ -177,6 +186,11 @@ macro(Xi_projectInit)
 		# $ENV{XXX_LIB_PATH}
 		# ...
 	)
+
+	include (InstallRequiredSystemLibraries)
+	set (CPACK_PACKAGE_VERSION_MAJOR "${${PROJECT_NAME}_VERSION_MAJOR}")
+	set (CPACK_PACKAGE_VERSION_MINOR "${${PROJECT_NAME}_VERSION_MINOR}")
+	include (CPack)
 endmacro()
 
 # call this if using Qt
@@ -187,3 +201,30 @@ macro(Xi_QtInit)
 	set(CMAKE_AUTORCC ON)
 	find_package(Qt5Widgets REQUIRED)
 endmacro()
+
+function(Xi_findPackage packageName)
+	message(STATUS "")
+	message(STATUS "Finding package: ${packageName}")
+	find_package(${packageName} REQUIRED)
+	if(NOT ${packageName}_FOUND)
+		message(ERROR "${packageName} not found!")
+	else()
+		if(DEFINED ${packageName}_DIR)
+			message(STATUS "${packageName}_DIR: ${${packageName}_DIR}")
+			include_directories("${${packageName}_DIR}/../../../include")
+			link_directories("${${packageName}_DIR}/../../../lib")
+		endif()
+		if(DEFINED ${packageName}_INCLUDE_DIRS)
+			message(STATUS "${packageName}_INCLUDE_DIRS: ${${packageName}_INCLUDE_DIRS}")
+			include_directories("${${packageName}_INCLUDE_DIRS}")
+		endif()
+		if(DEFINED ${packageName}_LIBRARY_DIRS})
+			message(STATUS "${packageName}_LIBRARY_DIRS: ${${packageName}_LIBRARY_DIRS}")
+			link_directories("${${packageName}_LIBRARY_DIRS}")
+		endif()
+		if(DEFINED ${packageName}_DEFINITIONS})
+			message(STATUS "${packageName}_DEFINITIONS: ${${packageName}_DEFINITIONS}")
+			add_definitions("${${packageName}_DEFINITIONS}")
+		endif()
+	endif()
+endfunction()
